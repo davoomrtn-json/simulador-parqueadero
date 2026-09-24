@@ -173,7 +173,7 @@ if __name__ == "__main__":
         h.join()
 
     print("--- Prueba terminada. Lugares ocupados al final:", control.lugares_ocupados, "---")
-    # ==============================================================================
+# ==============================================================================
 # Simulación de Vehículos y Eventos
 # ==============================================================================
 # Este bloque contiene la lógica individual de cada vehículo actuando como un 
@@ -230,3 +230,282 @@ def iniciar_simulacion(num_vehiculos: int, control, cola_eventos: queue.Queue):
         hilo.start()
         
     return hilos_vehiculos
+# ==============================================================================
+# INTERFAZ GRÁFICA - GUI
+# ==============================================================================
+
+import tkinter as tk
+from tkinter import ttk
+import queue
+
+
+# Cola que recibe los eventos de los vehículos
+cola_eventos = queue.Queue()
+
+# Capacidad del parqueadero
+CAPACIDAD = 3
+
+# Crear el controlador del parqueadero.
+# Los mensajes del controlador también se envían a la cola.
+control = ControlParqueadero(
+    capacidad=CAPACIDAD,
+    avisar=cola_eventos.put
+)
+
+
+# ------------------------------------------------------------------------------
+# FUNCIONES DE LA INTERFAZ
+# ------------------------------------------------------------------------------
+
+def agregar_vehiculo():
+    """
+    Crea un nuevo vehículo y lo agrega a la simulación.
+    """
+    iniciar_simulacion(
+        num_vehiculos=1,
+        control=control,
+        cola_eventos=cola_eventos
+    )
+
+
+def actualizar_interfaz():
+    """
+    Revisa la cola de eventos y actualiza la interfaz.
+    Esta función se ejecuta cada 100 milisegundos.
+    """
+
+    # Leer todos los mensajes disponibles en la cola
+    while True:
+        try:
+            mensaje = cola_eventos.get_nowait()
+
+            # Mostrar el mensaje en el registro
+            registro.insert(tk.END, mensaje + "\n")
+            registro.see(tk.END)
+
+        except queue.Empty:
+            break
+
+    # Actualizar contador de ocupados
+    ocupados = control.lugares_ocupados
+
+    # Actualizar contador de disponibles
+    disponibles = control.espacios_libres()
+
+    etiqueta_ocupados.config(text=f"Ocupados: {ocupados}")
+    etiqueta_disponibles.config(text=f"Disponibles: {disponibles}")
+
+    # Actualizar barra de progreso
+    barra_progreso["value"] = ocupados
+
+    # Actualizar porcentaje
+    porcentaje = (ocupados / CAPACIDAD) * 100
+    etiqueta_porcentaje.config(text=f"{porcentaje:.0f}% de ocupación")
+
+    # Volver a revisar la cola dentro de 100 milisegundos
+    ventana.after(100, actualizar_interfaz)
+
+
+def cerrar_aplicacion():
+    """
+    Cierra la aplicación.
+    """
+    ventana.destroy()
+
+
+# ------------------------------------------------------------------------------
+# VENTANA PRINCIPAL
+# ------------------------------------------------------------------------------
+
+ventana = tk.Tk()
+
+ventana.title("Simulador de Parqueadero")
+ventana.geometry("750x600")
+ventana.minsize(650, 500)
+
+
+# ------------------------------------------------------------------------------
+# TÍTULO
+# ------------------------------------------------------------------------------
+
+titulo = tk.Label(
+    ventana,
+    text="SIMULADOR DE PARQUEADERO",
+    font=("Arial", 22, "bold")
+)
+
+titulo.pack(pady=20)
+
+
+subtitulo = tk.Label(
+    ventana,
+    text="Control y simulación de vehículos con concurrencia",
+    font=("Arial", 11)
+)
+
+subtitulo.pack(pady=5)
+
+
+# ------------------------------------------------------------------------------
+# INFORMACIÓN DEL PARQUEADERO
+# ------------------------------------------------------------------------------
+
+marco_informacion = tk.Frame(ventana)
+
+marco_informacion.pack(pady=20)
+
+
+etiqueta_capacidad = tk.Label(
+    marco_informacion,
+    text=f"Capacidad: {CAPACIDAD}",
+    font=("Arial", 14)
+)
+
+etiqueta_capacidad.grid(row=0, column=0, padx=25)
+
+
+etiqueta_ocupados = tk.Label(
+    marco_informacion,
+    text="Ocupados: 0",
+    font=("Arial", 14)
+)
+
+etiqueta_ocupados.grid(row=0, column=1, padx=25)
+
+
+etiqueta_disponibles = tk.Label(
+    marco_informacion,
+    text=f"Disponibles: {CAPACIDAD}",
+    font=("Arial", 14)
+)
+
+etiqueta_disponibles.grid(row=0, column=2, padx=25)
+
+
+# ------------------------------------------------------------------------------
+# BARRA DE PROGRESO
+# ------------------------------------------------------------------------------
+
+etiqueta_titulo_barra = tk.Label(
+    ventana,
+    text="Ocupación del parqueadero",
+    font=("Arial", 12, "bold")
+)
+
+etiqueta_titulo_barra.pack(pady=(10, 5))
+
+
+barra_progreso = ttk.Progressbar(
+    ventana,
+    orient="horizontal",
+    length=500,
+    mode="determinate",
+    maximum=CAPACIDAD
+)
+
+barra_progreso.pack(pady=5)
+
+
+etiqueta_porcentaje = tk.Label(
+    ventana,
+    text="0% de ocupación",
+    font=("Arial", 11)
+)
+
+etiqueta_porcentaje.pack(pady=5)
+
+
+# ------------------------------------------------------------------------------
+# BOTÓN AGREGAR VEHÍCULO
+# ------------------------------------------------------------------------------
+
+boton_agregar = tk.Button(
+    ventana,
+    text="AGREGAR VEHÍCULO",
+    command=agregar_vehiculo,
+    font=("Arial", 12, "bold"),
+    padx=20,
+    pady=10
+)
+
+boton_agregar.pack(pady=20)
+
+
+# ------------------------------------------------------------------------------
+# REGISTRO DE EVENTOS
+# ------------------------------------------------------------------------------
+
+etiqueta_eventos = tk.Label(
+    ventana,
+    text="REGISTRO DE EVENTOS",
+    font=("Arial", 13, "bold")
+)
+
+etiqueta_eventos.pack(pady=(10, 5))
+
+
+marco_registro = tk.Frame(ventana)
+
+marco_registro.pack(
+    fill="both",
+    expand=True,
+    padx=30,
+    pady=5
+)
+
+
+barra_desplazamiento = tk.Scrollbar(marco_registro)
+
+barra_desplazamiento.pack(
+    side="right",
+    fill="y"
+)
+
+
+registro = tk.Text(
+    marco_registro,
+    height=10,
+    width=80,
+    yscrollcommand=barra_desplazamiento.set
+)
+
+registro.pack(
+    side="left",
+    fill="both",
+    expand=True
+)
+
+
+barra_desplazamiento.config(
+    command=registro.yview
+)
+
+
+# ------------------------------------------------------------------------------
+# BOTÓN CERRAR
+# ------------------------------------------------------------------------------
+
+boton_cerrar = tk.Button(
+    ventana,
+    text="CERRAR",
+    command=cerrar_aplicacion,
+    font=("Arial", 10),
+    padx=15,
+    pady=5
+)
+
+boton_cerrar.pack(pady=10)
+
+
+# ------------------------------------------------------------------------------
+# INICIAR ACTUALIZACIÓN DE LA INTERFAZ
+# ------------------------------------------------------------------------------
+
+ventana.after(100, actualizar_interfaz)
+
+
+# ------------------------------------------------------------------------------
+# INICIAR APLICACIÓN
+# ------------------------------------------------------------------------------
+
+ventana.mainloop()
