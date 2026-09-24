@@ -153,27 +153,27 @@ def _vehiculo_de_prueba(control: ControlParqueadero, vehiculo_id: str):
         control.salir(vehiculo_id)
 
 
-if __name__ == "__main__":
-    random.seed(42)  # deja el mismo orden de vehículos cada vez que se corre
+#if __name__ == "__main__":
+  #  random.seed(42)  # deja el mismo orden de vehículos cada vez que se corre
 
-    CAPACIDAD = 3
-    NUM_VEHICULOS = 8
+#    CAPACIDAD = 3
+ #   NUM_VEHICULOS = 8
 
-    control = ControlParqueadero(capacidad=CAPACIDAD)
+ #   control = ControlParqueadero(capacidad=CAPACIDAD)
 
-    hilos = [
-        threading.Thread(target=_vehiculo_de_prueba, args=(control, f"Vehiculo-{i+1}"))
-        for i in range(NUM_VEHICULOS)
-    ]
+  #  hilos = [
+   #     threading.Thread(target=_vehiculo_de_prueba, args=(control, f"Vehiculo-{i+1}"))
+    #    for i in range(NUM_VEHICULOS)
+    #]
 
-    print(f"--- Prueba por consola: {NUM_VEHICULOS} vehículos, {CAPACIDAD} cupos ---")
-    for h in hilos:
-        h.start()
-    for h in hilos:
-        h.join()
+    #print(f"--- Prueba por consola: {NUM_VEHICULOS} vehículos, {CAPACIDAD} cupos ---")
+    #for h in hilos:
+     #   h.start()
+    #for h in hilos:
+     #   h.join()
 
-    print("--- Prueba terminada. Lugares ocupados al final:", control.lugares_ocupados, "---")
-# ==============================================================================
+    #print("--- Prueba terminada. Lugares ocupados al final:", control.lugares_ocupados, "---")
+ # ==============================================================================
 # Simulación de Vehículos y Eventos
 # ==============================================================================
 # Este bloque contiene la lógica individual de cada vehículo actuando como un 
