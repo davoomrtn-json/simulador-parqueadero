@@ -324,7 +324,6 @@ def iniciar_simulacion(
 # ==============================================================================
 # VENTANA PRINCIPAL
 # ==============================================================================
-
 ventana = tk.Tk()
 
 ventana.title(
@@ -332,15 +331,77 @@ ventana.title(
 )
 
 ventana.geometry(
-    "750x600"
+    f"{ventana.winfo_screenwidth()}x{ventana.winfo_screenheight()}+0+0"
 )
 
 ventana.minsize(
     650,
     500
 )
+# ==============================================================================
+# FONDO DEL PARQUEADERO
+# ==============================================================================
+from PIL import Image, ImageTk
+
+imagen_fondo_original = Image.open("fondo_parqueadero.jpg")
+
+etiqueta_fondo = tk.Label(ventana)
+etiqueta_fondo.place(
+    x=0,
+    y=0,
+    relwidth=1,
+    relheight=1
+)
 
 
+# ==============================================================================
+
+def actualizar_fondo(event=None):
+
+    ancho = ventana.winfo_width()
+    alto = ventana.winfo_height()
+
+    if ancho <= 1 or alto <= 1:
+        return
+
+    imagen = imagen_fondo_original.copy()
+
+    proporcion_ancho = ancho / imagen.width
+    proporcion_alto = alto / imagen.height
+
+    escala = max(
+        proporcion_ancho,
+        proporcion_alto
+    )
+
+    nuevo_ancho = int(imagen.width * escala)
+    nuevo_alto = int(imagen.height * escala)
+
+    imagen = imagen.resize(
+        (nuevo_ancho, nuevo_alto),
+        Image.Resampling.LANCZOS
+    )
+
+    izquierda = (nuevo_ancho - ancho) // 2
+    arriba = (nuevo_alto - alto) // 2
+
+    imagen = imagen.crop(
+        (
+            izquierda,
+            arriba,
+            izquierda + ancho,
+            arriba + alto
+        )
+    )
+
+    imagen_fondo = ImageTk.PhotoImage(imagen)
+
+    etiqueta_fondo.config(
+        image=imagen_fondo
+    )
+
+    etiqueta_fondo.image = imagen_fondo
+ventana.bind("<Configure>", actualizar_fondo)
 # ==============================================================================
 # FUNCIÓN PARA AGREGAR VEHÍCULO
 # ==============================================================================
@@ -392,6 +453,7 @@ def agregar_vehiculo():
 # FUNCIÓN PARA ACTUALIZAR LA INTERFAZ
 # ==============================================================================
 
+def actualizar_interfaz():
 def actualizar_interfaz():
 
     # ------------------------------------------------------------------
@@ -519,9 +581,12 @@ def cerrar_aplicacion():
 titulo = tk.Label(
     ventana,
     text="SIMULADOR DE PARQUEADERO",
-    font=("Arial", 22, "bold")
+    font=("Arial", 24, "bold"),
+    fg="white",
+    bg="#1f2937",
+    padx=20,
+    pady=8
 )
-
 titulo.pack(
     pady=20
 )
@@ -670,9 +735,8 @@ marco_registro.pack(
     fill="both",
     expand=True,
     padx=30,
-    pady=5
+    pady=10
 )
-
 
 barra_desplazamiento = tk.Scrollbar(
     marco_registro
