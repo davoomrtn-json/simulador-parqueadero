@@ -11,256 +11,376 @@
    - Stefany Mora Rodríguez
    - Eliseo Jiménez Arias
    - Johan David Pinto Martín
-
- --------------------------------------------------------------------------
+--------------------------------------------------------------------------
  Control de Parqueadero y Sincronización
- --------------------------------------------------------------------------
- Este archivo se encarga de que el parqueadero nunca se sobrecupe, aunque
- varios vehículos intenten entrar o salir exactamente al mismo tiempo.
- Para lograrlo usa dos herramientas típicas de un sistema operativo:
-
-   - Un semáforo, que lleva la cuenta de cuántos cupos quedan libres.
-   - Un lock (un candado), que protege el número de vehículos parqueados
-     para que dos hilos no lo modifiquen a la vez y lo dejen mal.
-
- La idea es la misma que usa un sistema operativo para repartir recursos
- entre procesos: cada vehículo es como un proceso que necesita un recurso
- (el espacio de parqueo), y si no hay disponible, se queda esperando su
- turno en vez de entrar de todas formas.
+--------------------------------------------------------------------------
+Este archivo se encarga de que el parqueadero nunca se sobrecupe, aunque varios 
+vehículos intenten entrar o salir exactamente al mismo tiempo. Para lograrlo usa 
+dos herramientas típicas de un sistema operativo: - Un semáforo, que lleva la 
+cuenta de cuántos cupos quedan libres. - Un lock (un candado), que protege el 
+número de vehículos parqueados para que dos hilos no lo modifiquen a la vez y lo 
+dejen mal. La idea es la misma que usa un sistema operativo para repartir recursos 
+entre procesos: cada vehículo es como un proceso que necesita un recurso
+ (el espacio de parqueo), y si no hay disponible, se queda esperando su turno en vez
+ de entrar de todas formas.
 ================================================================================
 """
-
 import threading
 import time
 import random
 import queue
+import tkinter as tk
+from tkinter import ttk
+
+
+# ==============================================================================
+# CONTROL DEL PARQUEADERO
+# ==============================================================================
 
 class ControlParqueadero:
     """
     Se encarga de todo el control de acceso al parqueadero: dejar entrar
     o no a un vehículo, llevar la cuenta de cuántos hay adentro y avisar
     cuando alguien sale.
-
-    Tanto el hilo de cada vehículo como la interfaz gráfica deberían usar
-    solo esta clase para interactuar con el parqueadero, en vez de crear
-    sus propios semáforos o locks por su cuenta.
     """
 
     def __init__(self, capacidad: int, avisar=None):
-        """
-        capacidad: número de espacios que tiene el parqueadero.
-        avisar: función para mandar mensajes hacia afuera (por ejemplo,
-                a la cola que después lee la interfaz). Si no se pasa
-                nada, se usa print, así que esta clase también se puede
-                probar sola desde la consola.
-        """
+
         if capacidad <= 0:
-            raise ValueError("La capacidad debe ser un número mayor a 0.")
+            raise ValueError(
+                "La capacidad debe ser un número mayor a 0."
+            )
 
         self.capacidad = capacidad
 
-        # El semáforo empieza con "capacidad" cupos disponibles. Cada
-        # entrar() se lleva uno, cada salir() lo devuelve.
+        # Semáforo que controla los cupos disponibles.
         self.semaforo = threading.Semaphore(capacidad)
 
-        # Necesitamos el lock aparte del semáforo porque sumar o restar
-        # un número no es una operación de un solo paso para Python:
-        # primero se lee el valor, luego se cambia y luego se guarda.
-        # Si dos vehículos hacen esto exactamente al mismo tiempo, el
-        # conteo se puede desordenar. El lock evita eso.
+        # Lock para proteger el número de vehículos parqueados.
         self.lock = threading.Lock()
 
-        # Cuántos espacios están ocupados en este momento.
+        # Número de espacios ocupados actualmente.
         self.lugares_ocupados = 0
 
         self.avisar = avisar if avisar else print
 
     # ------------------------------------------------------------------
-    # Consultas: solo miran el estado, no lo cambian
+    # Consultas
     # ------------------------------------------------------------------
+
     def hay_espacio_libre(self) -> bool:
-        """True si en este momento queda al menos un espacio libre."""
+
         with self.lock:
+
             return self.lugares_ocupados < self.capacidad
 
     def espacios_libres(self) -> int:
-        """Cuántos espacios libres hay en este momento."""
+
         with self.lock:
+
             return self.capacidad - self.lugares_ocupados
 
     # ------------------------------------------------------------------
-    # Estas dos funciones son la sección crítica: aquí se toca el número
-    # compartido, así que siempre va dentro de un "with self.lock".
+    # Sección crítica
     # ------------------------------------------------------------------
+
     def _sumar_un_lugar_ocupado(self, vehiculo_id):
+
         with self.lock:
+
             self.lugares_ocupados += 1
-            self.avisar(f"[{vehiculo_id}] entró. Lugares ocupados: {self.lugares_ocupados}/{self.capacidad}")
+
+            self.avisar(
+                f"[{vehiculo_id}] entró. Lugares ocupados: "
+                f"{self.lugares_ocupados}/{self.capacidad}"
+            )
 
     def _restar_un_lugar_ocupado(self, vehiculo_id):
+
         with self.lock:
+
             self.lugares_ocupados -= 1
-            self.avisar(f"[{vehiculo_id}] salió. Lugares ocupados: {self.lugares_ocupados}/{self.capacidad}")
+
+            self.avisar(
+                f"[{vehiculo_id}] salió. Lugares ocupados: "
+                f"{self.lugares_ocupados}/{self.capacidad}"
+            )
 
     # ------------------------------------------------------------------
-    # Entrar y salir del parqueadero: esto es lo que usa cada vehículo
+    # Entrar y salir
     # ------------------------------------------------------------------
-    def entrar(self, vehiculo_id, tiempo_maximo_espera=None) -> bool:
-        """
-        Intenta conseguir un cupo para vehiculo_id.
 
-        Si hay cupo, lo toma y devuelve True. Si no hay, el vehículo se
-        queda esperando ahí mismo (bloqueado) hasta que otro salga y
-        libere un espacio, o hasta que se cumpla tiempo_maximo_espera
-        (si se lo damos) y entonces se rinde.
-        """
-        self.avisar(f"[{vehiculo_id}] esperando espacio...")
+    def entrar(
+        self,
+        vehiculo_id,
+        tiempo_maximo_espera=None
+    ) -> bool:
 
-        consiguio_cupo = self.semaforo.acquire(timeout=tiempo_maximo_espera)
+        self.avisar(
+            f"[{vehiculo_id}] esperando espacio..."
+        )
+
+        consiguio_cupo = self.semaforo.acquire(
+            timeout=tiempo_maximo_espera
+        )
 
         if consiguio_cupo:
-            self._sumar_un_lugar_ocupado(vehiculo_id)
+
+            self._sumar_un_lugar_ocupado(
+                vehiculo_id
+            )
+
             return True
+
         else:
-            self.avisar(f"[{vehiculo_id}] se rindió esperando (no hubo cupo a tiempo).")
+
+            self.avisar(
+                f"[{vehiculo_id}] se rindió esperando "
+                f"(no hubo cupo a tiempo)."
+            )
+
             return False
 
     def salir(self, vehiculo_id):
-        """
-        Libera el espacio de vehiculo_id: resta uno al contador y le
-        devuelve el cupo al semáforo para que otro vehículo pueda entrar.
 
-        Ojo: esto solo se debe llamar una vez por cada entrar() exitoso,
-        si no el conteo se descuadra.
-        """
-        self._restar_un_lugar_ocupado(vehiculo_id)
+        self._restar_un_lugar_ocupado(
+            vehiculo_id
+        )
+
         self.semaforo.release()
 
 
 # ==============================================================================
-# Prueba por consola, sin necesidad de la interfaz gráfica.
-# Si esto corre sin errores y el número de lugares ocupados nunca se pasa
-# de la capacidad ni queda mal al final, es señal de que la sincronización
-# está funcionando bien.
-# ==============================================================================
-def _vehiculo_de_prueba(control: ControlParqueadero, vehiculo_id: str):
-    # Espera un rato antes de intentar entrar, para que no lleguen todos
-    # exactamente al mismo tiempo.
-    time.sleep(random.uniform(0.1, 1.5))
-
-    if control.entrar(vehiculo_id, tiempo_maximo_espera=5):
-        time.sleep(random.uniform(0.5, 2.0))  # tiempo parqueado
-        control.salir(vehiculo_id)
-
-
-#if __name__ == "__main__":
-  #  random.seed(42)  # deja el mismo orden de vehículos cada vez que se corre
-
-#    CAPACIDAD = 3
- #   NUM_VEHICULOS = 8
-
- #   control = ControlParqueadero(capacidad=CAPACIDAD)
-
-  #  hilos = [
-   #     threading.Thread(target=_vehiculo_de_prueba, args=(control, f"Vehiculo-{i+1}"))
-    #    for i in range(NUM_VEHICULOS)
-    #]
-
-    #print(f"--- Prueba por consola: {NUM_VEHICULOS} vehículos, {CAPACIDAD} cupos ---")
-    #for h in hilos:
-     #   h.start()
-    #for h in hilos:
-     #   h.join()
-
-    #print("--- Prueba terminada. Lugares ocupados al final:", control.lugares_ocupados, "---")
- # ==============================================================================
-# Simulación de Vehículos y Eventos
-# ==============================================================================
-# Este bloque contiene la lógica individual de cada vehículo actuando como un 
-# proceso independiente en el sistema, y la generación de sus respectivos hilos.
+# PRUEBA POR CONSOLA
 # ==============================================================================
 
-# Crear la función vehiculo(id)[cite: 10].
-def vehiculo(id_vehiculo: str, control, cola_eventos: queue.Queue):
-    """
-    Representa el ciclo de vida de un vehículo. Interactúa con el ControlParqueadero
-    para solicitar acceso, parquear y salir.
-    """
-    # Generar tiempos aleatorios de llegada[cite: 10].
-    tiempo_llegada = random.uniform(0.5, 3.0)
-    time.sleep(tiempo_llegada)
-    
-    # Enviar eventos a la Queue[cite: 10].
-    cola_eventos.put(f"[{id_vehiculo}] Llegó al parqueadero y solicita ingreso.")
-    
-    # Intentar ingreso al parqueadero[cite: 10].
-    # El hilo se bloqueará aquí si el semáforo no tiene cupos disponibles.
-    ingreso_exitoso = control.entrar(id_vehiculo, tiempo_maximo_espera=10)
-    
-    if ingreso_exitoso:
-        # Simular tiempo de parqueo[cite: 10].
-        tiempo_parqueo = random.uniform(2.0, 6.0)
-        cola_eventos.put(f"[{id_vehiculo}] Ingresó. Tiempo de parqueo: {tiempo_parqueo:.1f}s.")
-        time.sleep(tiempo_parqueo)
-        
-        # Gestionar la salida[cite: 10].
-        control.salir(id_vehiculo)
-        # Enviar eventos a la Queue[cite: 10].
-        cola_eventos.put(f"[{id_vehiculo}] Liberó el espacio y salió del parqueadero.")
-    else:
-        cola_eventos.put(f"[{id_vehiculo}] Se cansó de esperar y se fue (timeout).")
+def _vehiculo_de_prueba(
+    control: ControlParqueadero,
+    vehiculo_id: str
+):
 
-def iniciar_simulacion(num_vehiculos: int, control, cola_eventos: queue.Queue):
-    """
-    Se encarga de inicializar la concurrencia creando y arrancando los hilos.
-    """
-    hilos_vehiculos = []
-    
-    # Crear hilos para cada vehículo[cite: 10].
-    for i in range(num_vehiculos):
-        id_vehiculo = f"Vehículo-{i+1}"
-        hilo = threading.Thread(
-            target=vehiculo, 
-            args=(id_vehiculo, control, cola_eventos),
-            daemon=True # Permite que el programa termine aunque queden hilos en espera
+    time.sleep(
+        random.uniform(0.1, 1.5)
+    )
+
+    if control.entrar(
+        vehiculo_id,
+        tiempo_maximo_espera=5
+    ):
+
+        time.sleep(
+            random.uniform(0.5, 2.0)
         )
-        hilos_vehiculos.append(hilo)
-        
-    for hilo in hilos_vehiculos:
-        hilo.start()
-        
-    return hilos_vehiculos
+
+        control.salir(
+            vehiculo_id
+        )
+
+
 # ==============================================================================
-# INTERFAZ GRÁFICA - GUI
+# VARIABLES DE LA SIMULACIÓN
 # ==============================================================================
 
-import tkinter as tk
-from tkinter import ttk
-import queue
-
-
-# Cola que recibe los eventos de los vehículos
 cola_eventos = queue.Queue()
 
-# Capacidad del parqueadero
 CAPACIDAD = 3
 
-# Crear el controlador del parqueadero.
-# Los mensajes del controlador también se envían a la cola.
 control = ControlParqueadero(
     capacidad=CAPACIDAD,
     avisar=cola_eventos.put
 )
 
 
-# ------------------------------------------------------------------------------
-# FUNCIONES DE LA INTERFAZ
-# ------------------------------------------------------------------------------
+# ==============================================================================
+# CONTROL DE VEHÍCULOS ACTIVOS
+# ==============================================================================
+
+# Esta variable cuenta los vehículos que ya fueron agregados
+# aunque todavía estén esperando para llegar al parqueadero.
+
+vehiculos_activos = 0
+
+# Lock para proteger la variable anterior.
+
+lock_vehiculos_activos = threading.Lock()
+
+
+# ==============================================================================
+# SIMULACIÓN DE VEHÍCULOS
+# ==============================================================================
+
+def vehiculo(
+    id_vehiculo: str,
+    control,
+    cola_eventos: queue.Queue
+):
+
+    global vehiculos_activos
+
+    try:
+
+        # Tiempo aleatorio antes de llegar.
+        tiempo_llegada = random.uniform(
+            0.5,
+            3.0
+        )
+
+        time.sleep(
+            tiempo_llegada
+        )
+
+        # Avisar que llegó.
+        cola_eventos.put(
+            f"[{id_vehiculo}] Llegó al parqueadero y solicita ingreso."
+        )
+
+        # Intentar ingresar.
+        ingreso_exitoso = control.entrar(
+            id_vehiculo,
+            tiempo_maximo_espera=10
+        )
+
+        if ingreso_exitoso:
+
+            # Tiempo que permanece estacionado.
+            tiempo_parqueo = random.uniform(
+                2.0,
+                6.0
+            )
+
+            cola_eventos.put(
+                f"[{id_vehiculo}] Ingresó. "
+                f"Tiempo de parqueo: {tiempo_parqueo:.1f}s."
+            )
+
+            time.sleep(
+                tiempo_parqueo
+            )
+
+            # Liberar el espacio.
+            control.salir(
+                id_vehiculo
+            )
+
+            cola_eventos.put(
+                f"[{id_vehiculo}] Liberó el espacio "
+                f"y salió del parqueadero."
+            )
+
+        else:
+
+            cola_eventos.put(
+                f"[{id_vehiculo}] Se cansó de esperar "
+                f"y se fue (timeout)."
+            )
+
+    finally:
+
+        # Cuando el vehículo termina completamente su ciclo,
+        # deja de contarse como vehículo activo.
+
+        with lock_vehiculos_activos:
+
+            vehiculos_activos -= 1
+
+
+# ==============================================================================
+# INICIAR SIMULACIÓN
+# ==============================================================================
+
+def iniciar_simulacion(
+    num_vehiculos: int,
+    control,
+    cola_eventos: queue.Queue
+):
+
+    hilos_vehiculos = []
+
+    for i in range(num_vehiculos):
+
+        id_vehiculo = f"Vehículo-{i+1}"
+
+        hilo = threading.Thread(
+            target=vehiculo,
+            args=(
+                id_vehiculo,
+                control,
+                cola_eventos
+            ),
+            daemon=True
+        )
+
+        hilos_vehiculos.append(
+            hilo
+        )
+
+    for hilo in hilos_vehiculos:
+
+        hilo.start()
+
+    return hilos_vehiculos
+
+
+# ==============================================================================
+# VENTANA PRINCIPAL
+# ==============================================================================
+
+ventana = tk.Tk()
+
+ventana.title(
+    "Simulador de Parqueadero"
+)
+
+ventana.geometry(
+    "750x600"
+)
+
+ventana.minsize(
+    650,
+    500
+)
+
+
+# ==============================================================================
+# FUNCIÓN PARA AGREGAR VEHÍCULO
+# ==============================================================================
 
 def agregar_vehiculo():
-    """
-    Crea un nuevo vehículo y lo agrega a la simulación.
-    """
+
+    global vehiculos_activos
+
+    # ----------------------------------------------------------
+    # COMPROBAR SI YA EXISTEN 3 VEHÍCULOS ACTIVOS
+    # ----------------------------------------------------------
+
+    with lock_vehiculos_activos:
+
+        if vehiculos_activos >= CAPACIDAD:
+
+            return
+
+        # Registrar inmediatamente el nuevo vehículo.
+        vehiculos_activos += 1
+
+        activos_actuales = vehiculos_activos
+
+
+    # ----------------------------------------------------------
+    # CAMBIAR EL BOTÓN INMEDIATAMENTE AL LLEGAR A 3
+    # ----------------------------------------------------------
+
+    if activos_actuales >= CAPACIDAD:
+
+        boton_agregar.config(
+            text="🚫 NO HAY ESPACIO DE PARQUEO",
+            state=tk.DISABLED
+        )
+
+
+    # ----------------------------------------------------------
+    # CREAR EL HILO DEL VEHÍCULO
+    # ----------------------------------------------------------
+
     iniciar_simulacion(
         num_vehiculos=1,
         control=control,
@@ -268,65 +388,133 @@ def agregar_vehiculo():
     )
 
 
-def actualizar_interfaz():
-    """
-    Revisa la cola de eventos y actualiza la interfaz.
-    Esta función se ejecuta cada 100 milisegundos.
-    """
+# ==============================================================================
+# FUNCIÓN PARA ACTUALIZAR LA INTERFAZ
+# ==============================================================================
 
-    # Leer todos los mensajes disponibles en la cola
+def actualizar_interfaz():
+
+    # ------------------------------------------------------------------
+    # LEER LOS EVENTOS
+    # ------------------------------------------------------------------
+
     while True:
+
         try:
+
             mensaje = cola_eventos.get_nowait()
 
-            # Mostrar el mensaje en el registro
-            registro.insert(tk.END, mensaje + "\n")
-            registro.see(tk.END)
+            registro.insert(
+                tk.END,
+                mensaje + "\n"
+            )
+
+            registro.see(
+                tk.END
+            )
 
         except queue.Empty:
+
             break
 
-    # Actualizar contador de ocupados
+
+    # ------------------------------------------------------------------
+    # ESTADO DEL PARQUEADERO
+    # ------------------------------------------------------------------
+
     ocupados = control.lugares_ocupados
 
-    # Actualizar contador de disponibles
     disponibles = control.espacios_libres()
 
-    etiqueta_ocupados.config(text=f"Ocupados: {ocupados}")
-    etiqueta_disponibles.config(text=f"Disponibles: {disponibles}")
 
-    # Actualizar barra de progreso
+    # ------------------------------------------------------------------
+    # VEHÍCULOS ACTIVOS
+    # ------------------------------------------------------------------
+
+    with lock_vehiculos_activos:
+
+        activos = vehiculos_activos
+
+
+    # ------------------------------------------------------------------
+    # CONTROL DEL BOTÓN
+    # ------------------------------------------------------------------
+
+    if activos >= CAPACIDAD:
+
+        boton_agregar.config(
+            text="🚫 NO HAY ESPACIO DE PARQUEO",
+            state=tk.DISABLED
+        )
+
+    else:
+
+        boton_agregar.config(
+            text="AGREGAR VEHÍCULO",
+            state=tk.NORMAL
+        )
+
+
+    # ------------------------------------------------------------------
+    # ACTUALIZAR OCUPADOS
+    # ------------------------------------------------------------------
+
+    etiqueta_ocupados.config(
+        text=f"Ocupados: {ocupados}"
+    )
+
+
+    # ------------------------------------------------------------------
+    # ACTUALIZAR DISPONIBLES
+    # ------------------------------------------------------------------
+
+    etiqueta_disponibles.config(
+        text=f"Disponibles: {disponibles}"
+    )
+
+
+    # ------------------------------------------------------------------
+    # ACTUALIZAR BARRA
+    # ------------------------------------------------------------------
+
     barra_progreso["value"] = ocupados
 
-    # Actualizar porcentaje
-    porcentaje = (ocupados / CAPACIDAD) * 100
-    etiqueta_porcentaje.config(text=f"{porcentaje:.0f}% de ocupación")
 
-    # Volver a revisar la cola dentro de 100 milisegundos
-    ventana.after(100, actualizar_interfaz)
+    # ------------------------------------------------------------------
+    # ACTUALIZAR PORCENTAJE
+    # ------------------------------------------------------------------
 
+    porcentaje = (
+        ocupados / CAPACIDAD
+    ) * 100
+
+    etiqueta_porcentaje.config(
+        text=f"{porcentaje:.0f}% de ocupación"
+    )
+
+
+    # ------------------------------------------------------------------
+    # VOLVER A EJECUTAR
+    # ------------------------------------------------------------------
+
+    ventana.after(
+        100,
+        actualizar_interfaz
+    )
+
+
+# ==============================================================================
+# FUNCIÓN PARA CERRAR
+# ==============================================================================
 
 def cerrar_aplicacion():
-    """
-    Cierra la aplicación.
-    """
+
     ventana.destroy()
 
 
-# ------------------------------------------------------------------------------
-# VENTANA PRINCIPAL
-# ------------------------------------------------------------------------------
-
-ventana = tk.Tk()
-
-ventana.title("Simulador de Parqueadero")
-ventana.geometry("750x600")
-ventana.minsize(650, 500)
-
-
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # TÍTULO
-# ------------------------------------------------------------------------------
+# ==============================================================================
 
 titulo = tk.Label(
     ventana,
@@ -334,7 +522,9 @@ titulo = tk.Label(
     font=("Arial", 22, "bold")
 )
 
-titulo.pack(pady=20)
+titulo.pack(
+    pady=20
+)
 
 
 subtitulo = tk.Label(
@@ -343,16 +533,22 @@ subtitulo = tk.Label(
     font=("Arial", 11)
 )
 
-subtitulo.pack(pady=5)
+subtitulo.pack(
+    pady=5
+)
 
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # INFORMACIÓN DEL PARQUEADERO
-# ------------------------------------------------------------------------------
+# ==============================================================================
 
-marco_informacion = tk.Frame(ventana)
+marco_informacion = tk.Frame(
+    ventana
+)
 
-marco_informacion.pack(pady=20)
+marco_informacion.pack(
+    pady=20
+)
 
 
 etiqueta_capacidad = tk.Label(
@@ -361,7 +557,11 @@ etiqueta_capacidad = tk.Label(
     font=("Arial", 14)
 )
 
-etiqueta_capacidad.grid(row=0, column=0, padx=25)
+etiqueta_capacidad.grid(
+    row=0,
+    column=0,
+    padx=25
+)
 
 
 etiqueta_ocupados = tk.Label(
@@ -370,7 +570,11 @@ etiqueta_ocupados = tk.Label(
     font=("Arial", 14)
 )
 
-etiqueta_ocupados.grid(row=0, column=1, padx=25)
+etiqueta_ocupados.grid(
+    row=0,
+    column=1,
+    padx=25
+)
 
 
 etiqueta_disponibles = tk.Label(
@@ -379,12 +583,16 @@ etiqueta_disponibles = tk.Label(
     font=("Arial", 14)
 )
 
-etiqueta_disponibles.grid(row=0, column=2, padx=25)
+etiqueta_disponibles.grid(
+    row=0,
+    column=2,
+    padx=25
+)
 
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # BARRA DE PROGRESO
-# ------------------------------------------------------------------------------
+# ==============================================================================
 
 etiqueta_titulo_barra = tk.Label(
     ventana,
@@ -392,7 +600,9 @@ etiqueta_titulo_barra = tk.Label(
     font=("Arial", 12, "bold")
 )
 
-etiqueta_titulo_barra.pack(pady=(10, 5))
+etiqueta_titulo_barra.pack(
+    pady=(10, 5)
+)
 
 
 barra_progreso = ttk.Progressbar(
@@ -403,7 +613,9 @@ barra_progreso = ttk.Progressbar(
     maximum=CAPACIDAD
 )
 
-barra_progreso.pack(pady=5)
+barra_progreso.pack(
+    pady=5
+)
 
 
 etiqueta_porcentaje = tk.Label(
@@ -412,12 +624,14 @@ etiqueta_porcentaje = tk.Label(
     font=("Arial", 11)
 )
 
-etiqueta_porcentaje.pack(pady=5)
+etiqueta_porcentaje.pack(
+    pady=5
+)
 
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # BOTÓN AGREGAR VEHÍCULO
-# ------------------------------------------------------------------------------
+# ==============================================================================
 
 boton_agregar = tk.Button(
     ventana,
@@ -428,12 +642,14 @@ boton_agregar = tk.Button(
     pady=10
 )
 
-boton_agregar.pack(pady=20)
+boton_agregar.pack(
+    pady=20
+)
 
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # REGISTRO DE EVENTOS
-# ------------------------------------------------------------------------------
+# ==============================================================================
 
 etiqueta_eventos = tk.Label(
     ventana,
@@ -441,10 +657,14 @@ etiqueta_eventos = tk.Label(
     font=("Arial", 13, "bold")
 )
 
-etiqueta_eventos.pack(pady=(10, 5))
+etiqueta_eventos.pack(
+    pady=(10, 5)
+)
 
 
-marco_registro = tk.Frame(ventana)
+marco_registro = tk.Frame(
+    ventana
+)
 
 marco_registro.pack(
     fill="both",
@@ -454,7 +674,9 @@ marco_registro.pack(
 )
 
 
-barra_desplazamiento = tk.Scrollbar(marco_registro)
+barra_desplazamiento = tk.Scrollbar(
+    marco_registro
+)
 
 barra_desplazamiento.pack(
     side="right",
@@ -481,9 +703,9 @@ barra_desplazamiento.config(
 )
 
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # BOTÓN CERRAR
-# ------------------------------------------------------------------------------
+# ==============================================================================
 
 boton_cerrar = tk.Button(
     ventana,
@@ -494,18 +716,23 @@ boton_cerrar = tk.Button(
     pady=5
 )
 
-boton_cerrar.pack(pady=10)
+boton_cerrar.pack(
+    pady=10
+)
 
 
-# ------------------------------------------------------------------------------
-# INICIAR ACTUALIZACIÓN DE LA INTERFAZ
-# ------------------------------------------------------------------------------
+# ==============================================================================
+# INICIAR ACTUALIZACIÓN
+# ==============================================================================
 
-ventana.after(100, actualizar_interfaz)
+ventana.after(
+    100,
+    actualizar_interfaz
+)
 
 
-# ------------------------------------------------------------------------------
-# INICIAR APLICACIÓN
-# ------------------------------------------------------------------------------
+# ==============================================================================
+# EJECUTAR APLICACIÓN
+# ==============================================================================
 
 ventana.mainloop()
