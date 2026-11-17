@@ -184,6 +184,8 @@ def _vehiculo_de_prueba(
 cola_eventos = queue.Queue()
 
 CAPACIDAD = 3
+    contador_vehiculos = 0
+    lock_contador = threading.Lock() 
 
 control = ControlParqueadero(
     capacidad=CAPACIDAD,
@@ -294,11 +296,15 @@ def iniciar_simulacion(
     cola_eventos: queue.Queue
 ):
 
-    hilos_vehiculos = []
+   global contador_vehiculos
 
-    for i in range(num_vehiculos):
+  hilos_vehiculos = []
 
-        id_vehiculo = f"Vehículo-{i+1}"
+for i in range(num_vehiculos):
+
+    with lock_contador:
+        contador_vehiculos += 1
+        id_vehiculo = f"Vehículo-{contador_vehiculos}"
 
         hilo = threading.Thread(
             target=vehiculo,
