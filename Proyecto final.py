@@ -594,7 +594,7 @@ titulo = tk.Label(
     pady=8
 )
 titulo.pack(
-    pady=20
+    pady=8
 )
 
 
