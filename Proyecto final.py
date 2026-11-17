@@ -744,7 +744,7 @@ marco_registro.pack(
     pady=10
 )
 
-marco_registro.pack_propagate(False
+marco_registro.pack_propagate(False)
 
 barra_desplazamiento = tk.Scrollbar(
     marco_registro
