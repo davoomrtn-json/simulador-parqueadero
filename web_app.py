@@ -199,6 +199,9 @@ PAGINA = r"""
 body {
     margin: 0;
     min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
+
     font-family: "Segoe UI", Arial, sans-serif;
     color: var(--blanco);
 
@@ -543,6 +546,9 @@ h1 {
     padding: 0;
     margin: 0;
     list-style: none;
+    max-height: 220px;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .evento {
@@ -594,10 +600,11 @@ h1 {
 
 @media (max-width: 760px) {
     .contenedor {
-        width: 94%;
-        padding-top: 12px;
-    }
-
+    width: 94%;
+    padding-top: 12px;
+    box-sizing: border-box;
+    margin: 0 auto;
+}
     .encabezado {
         padding: 18px;
     }
