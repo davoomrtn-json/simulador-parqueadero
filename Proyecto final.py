@@ -734,7 +734,8 @@ etiqueta_eventos.pack(
 
 
 marco_registro = tk.Frame(
-    ventana
+    ventana,
+    height=180
 )
 
 marco_registro.pack(
@@ -743,6 +744,8 @@ marco_registro.pack(
     padx=30,
     pady=10
 )
+
+marco_registro.pack_propagate(False)
 
 barra_desplazamiento = tk.Scrollbar(
     marco_registro
