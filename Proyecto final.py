@@ -605,7 +605,7 @@ subtitulo = tk.Label(
 )
 
 subtitulo.pack(
-    pady=5
+    pady=2
 )
 
 
@@ -618,7 +618,7 @@ marco_informacion = tk.Frame(
 )
 
 marco_informacion.pack(
-    pady=20
+    pady=8
 )
 
 
@@ -672,7 +672,7 @@ etiqueta_titulo_barra = tk.Label(
 )
 
 etiqueta_titulo_barra.pack(
-    pady=(10, 5)
+    pady=(5, 3)
 )
 
 
@@ -714,7 +714,7 @@ boton_agregar = tk.Button(
 )
 
 boton_agregar.pack(
-    pady=20
+    pady=8
 )
 
 
@@ -729,7 +729,7 @@ etiqueta_eventos = tk.Label(
 )
 
 etiqueta_eventos.pack(
-    pady=(10, 5)
+    pady=(5, 3)
 )
 
 
