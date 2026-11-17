@@ -739,8 +739,7 @@ marco_registro = tk.Frame(
 )
 
 marco_registro.pack(
-    fill="both",
-    expand=True,
+    fill="x",
     padx=30,
     pady=10
 )
