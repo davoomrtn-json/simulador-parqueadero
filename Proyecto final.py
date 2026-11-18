@@ -9,7 +9,6 @@
 
  Autores:
    - Stefany Mora Rodríguez
-   - Eliseo Jiménez Arias
    - Johan David Pinto Martín
 
  --------------------------------------------------------------------------
